@@ -180,6 +180,7 @@ let uuidOrg, curPrompt = {}, prevPrompt = {}, prevMessages = [], prevImpersonate
         FullColon: true,
         padtxt: "1000,1000,15000",
         xmlPlot: true,
+        SkipRestricted: true,
         Superfetch: true
     }
 };
@@ -278,11 +279,10 @@ const updateParams = res => {
     });
 /***************************** */
     const accErr = await checkResErr(accRes, false ,false); //await checkResErr(accRes);
-    if (accErr?.status === 403 && !/request/i.test(accErr?.message)) {
-        console.log(`[31mExpired![0m`);
+    if (accErr?.status === 403 && accErr?.message === 'Invalid authorization') {
+        console.log(`[31mInvalid![0m`);
         return CookieCleaner(percentage);
-    }
-    if (accErr?.status < 200 || accErr?.status >= 300) throw accErr;
+    } else if (accErr?.status < 200 || accErr?.status >= 300) throw accErr;
 /***************************** */
     const accInfo = (await accRes.json())?.find(item => item.capabilities.includes('chat')); //const accInfo = (await accRes.json())?.[0];
     if (!accInfo || accInfo.error) {
@@ -350,14 +350,14 @@ const updateParams = res => {
 /***************************** */
         if (Config.CookieArray?.length > 0) { //}
             console.log(`${'consumer_banned' === flagtype ? '[31mBanned' : '[35mRestricted'}![0m`);
-            return 'consumer_banned' === flagtype ? CookieCleaner(percentage) : CookieChanger.emit('ChangeCookie');
+            return 'consumer_banned' === flagtype ? CookieCleaner(percentage) : Config.Settings.SkipRestricted && CookieChanger.emit('ChangeCookie');
         }
     }
-    changing = false, invalidtime = 0;
     if (Config.Cookiecounter < 0) {
         console.log(`[progress]: [32m${percentage.toFixed(2)}%[0m\n[length]: [33m${Config.CookieArray.length}[0m\n`);
         return CookieChanger.emit('ChangeCookie');
     }
+    changing = false, invalidtime = 0;
 /***************************** */
     const convRes = await (Config.Settings.Superfetch ? Superfetch : fetch)(`${Config.rProxy || AI.end()}/api/organizations/${accInfo.uuid}/chat_conversations`, { //const convRes = await fetch(`${Config.rProxy || AI.end()}/api/organizations/${uuidOrg}/chat_conversations`, {
         method: 'GET',
@@ -679,9 +679,9 @@ const updateParams = res => {
                                 const rounds = prompt.split('\n\nHuman:');
                                 messages = rounds.slice(1).flatMap(round => {
                                     const turns = round.split('\n\nAssistant:');
-                                    return [{role: 'user', content: turns[0].trim()}].concat(turns.slice(1).flatMap(turn => [{role: 'assistant', content: turn.trim()}]))
+                                    return [{role: 'user', content: turns[0].trim()}].concat(turns.slice(1).flatMap(turn => [{role: 'assistant', content: turn.trim()}]));
                                 }).reduce((acc, current) => {
-                                    if (current.content) if (Config.Settings.FullColon && acc[acc.length - 1]?.role === current.role) {
+                                    if (Config.Settings.FullColon && acc.length > 0 && (acc[acc.length - 1].role === current.role || !acc[acc.length - 1].content || (current.role === 'user' && !current.content))) {
                                         acc[acc.length - 1].content += (current.role === 'user' ? '\n\r\nHuman:' : '\n\r\nAssistant:') + current.content;
                                     } else acc.push(current);
                                     return acc;
